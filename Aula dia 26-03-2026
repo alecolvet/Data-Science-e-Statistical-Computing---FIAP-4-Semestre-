@@ -1,0 +1,48 @@
+#Comparando: teórica (classica) vs empírica (simulação)
+mport numpy as py
+rng = np.random.default_rng(51)
+
+#Evento: sair 6 em um dado
+p_teorica - 1/6
+amostras = rng.integers(1,  7, size=6000)
+p_empirica = np.mean(amostras == 6)
+
+print("P(teórica - sair 6): ", p_teorica)
+print("P(empirica - sair 6): ", p_empirica)
+print("Obs: probabilidade subjetiva depende de crança/experiência, não de contagem.")
+
+###O QUE É ESPAÇO AMOSTRAL?
+###Espaço amostral (S) é o conjunto de todos os possíveis resultados de um experimento aleatório.
+
+S_dado = {1,2,3,4,5,6}
+A_par = {2,4,6}
+
+print("S (dado): ", S_dado)
+print("A (par): ", A_par)
+print("A é subconjunto de S?", A_par.issubset(S_dado))
+
+###EVENTOS, O QUE SÃO?
+######Evento é qualquer subconjunto de espaço amostral.
+######Ex: Dado: Evento "tirar um número par" -> A={2,4,6}
+######Evento simples: Contém apenas um resultado do espaço amostral
+######Evento composto: Contém mais de um resultado
+######Ex: Lançar um dado e sair 3 -> Evento Simples A={3}. Lançar um dado e sair numero par -> Evento Composto B={2,4,6}
+
+###CLASSIFICAÇÃO DE EVENTOS
+######Evento Certo: ocorre sempre, independentemente do resultado. Exemplo: "Tirar um número entre 1 e 6 ao lançar um dado"
+######Evento Impossível: Nunca pode acontecer. Exemplo: "Tirar um 7 ao lançar um dado de 6 lados"
+######Evento Mutuamente Exclusivo: Dois eventos que não podem ocorrer ao mesmo tempo. Exemplo: "Tirar um número par e tirar um número ímpar no mesmo lançamento de dado"
+######Evento Independente: O resultado de um evento não afeta o outro. Exemplo: "Lançar um dado e uma moeda ao mesmo tempo"
+
+#Regras do produto (eventos independentes): P(A ∩ B) = P(A)P(B)
+p_cara = 0.5
+p_duas_caras = p_cara * p_cara
+
+#Simulação
+import numpy as np
+rng = np.random.default_rng(42)
+m1 = rng.binomial(1, 0.5, size=20000)
+m2 = rng.binomial(1, 0.5, size=20000)
+p_emp = np.mean((m1==1) & (m2==1))
+
+print("P(duas caras) empírica:", p_emp)
