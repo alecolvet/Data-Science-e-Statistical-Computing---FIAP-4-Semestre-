@@ -1,0 +1,48 @@
+#Bibliotecas
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy import stats
+
+#rng -> é um gerador de números aleatórios (objetos)
+rng = np.random.default_rng(42)
+
+#RANDOMIZER - PROBABILIDADE EMPIRICA
+#Exemplo: probabilidade empírica (frequência relativa) com simulação
+import numpy as np
+rng = np.random.default_rng(42)
+
+#Moeda justa: P(cara) = 0.5
+lancamentos = rng.binomial(n=1, p=0.5, size=1000) #1=cara,0=coroa
+p_cara_empirica = lancamentos.mean()
+p_coroa_empirica = 1 - p_cara_empirica
+
+print("P(cara) empírica:", p_cara_empirica)
+print("P(coroa) empírica:", p_coroa_empirica)
+
+#PROBABILIDADE INTUITIVA
+#Dado honesto: P(par) = 3/6 - 0.5
+pares = {2,4,6}
+p_par_teorica = len(pares) / 6
+
+#Simulação
+#Gera 10.000 números inteiros aleatórios entre 1 e 6.
+#Aqui acontece a mágica: ele verifica elemento por elemento e resulta num vetor booleano (true = 1 / false = 0)
+#Probabilidade empírica = média de um evento booleano
+import numpy as np
+rng = np.random.default_rng(42)
+amostras = rng.integers(1,7,size=10000)
+p_par_empirica = np.mean(np.isin(amostras,list(pares)))
+
+print("P(par) teórica:",p_par_teorica)
+print("P(par) empírica:",p_par_empirica)
+
+#INTERPRETAÇÃO DA PROBABILIDADE
+#Interpretação de "70% de chance de chuva" como frequência de longo prazo
+import numpy as np
+rng = np.random.default_rng(42)
+
+p_chuva = 0.70
+dias = 100
+chuva = rng.binomial(1,p_chuva,size=dias)
+print(f"Em {dias} dias 'iguais', choveu em {chuva.sum()} dias (simulação).")
