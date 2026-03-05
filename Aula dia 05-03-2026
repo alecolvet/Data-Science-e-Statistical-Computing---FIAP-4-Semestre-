@@ -1,0 +1,175 @@
+###Se eu não tenho rótulo, como descubro padrões?
+###Clusterização é agrupar objetos semelhantes sem saber previamente quais são os grupos.
+###Clusterização é dividir dados em grupos de alta similaridade interna e baixa similaridade externa.
+###O que é clusterização e por que existe
+###Clusterização é um conjunto de técnicas de aprendizado não supervisionado que tenta descobrir estrutura em dados sem rótulos: separar observações em grupos (clusters) de modo que itens do mesmo grupo sejam mais “parecidos” entre si do que com itens de outros grupos.
+###Onde isso entra no mundo real:
+###Segmentação de clientes (marketing, risco, churn)
+###Agrupamento de comportamentos (IoT, fraude, logs)
+###Compressão/quantização (reduzir complexidade)
+###Descoberta de perfis (saúde, educação, produto)
+###O detalhe essencial: clusterização não “encontra a verdade”, ela cria uma partição baseada em escolhas humanas (métrica, escala, features, k, algoritmo).
+
+
+ref_date = df['order_date'].max()
+customer = (df
+    .groupby('customer_id')
+    .agg(
+        ultima_compra=('order_date','max'),
+        frequencia=('order_id','nunique'),
+        receita_liquida=('net_revenue_after_return','sum'),
+        ticket_medio=('net_revenue_after_return','mean'),
+        desconto_medio=('discount_pct','mean'),
+        devolucao_percentual=('is_returned','mean'),
+        atraso_medio=('actual_days','mean'),
+        tempo_expedicao_medio=('days_to_ship','mean'),
+        entrega_media=('days_to_deliver','mean'),
+        media_atraso=('delivered_late','mean'),
+        idade_media=('customer_age','mean')
+    )
+    .reset_index()
+)
+customer['recencia_dias'] = (ref_date - customer['ultima_compra']).dt.days
+
+display(customer)
+
+
+def one_hot_share(df, col, idcol='customer_id'):
+    ct = pd.crosstab(df[idcol], df[col])
+    ct = ct.div(ct.sum(axis=1), axis=0).fillna(0.0)
+    ct.columns = [f"{col.lower()}_share_{c}" for c in ct.columns]
+    return ct
+
+mix_cat = one_hot_share(df, 'category')
+mix_channel = one_hot_share(df, 'channel')
+mix_ship = one_hot_share(df, 'shipping_method')
+
+cust_features = (customer
+                 .merge(mix_cat, left_on='customer_id', right_index=True, how='left')
+                 .merge(mix_channel, left_on='customer_id', right_index=True, how='left')
+                 .merge(mix_ship, left_on='customer_id', right_index=True, how='left')
+                 .fillna(0.0))
+
+cust_features.head()
+
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+
+num_cols = [
+    'recencia_dias','frequencia','receita_liquida','ticket_medio','desconto_medio',
+    'devolucao_percentual','atraso_medio','tempo_expedicao_medio','entrega_media','media_atraso','idade_media'
+]
+share_cols = [c for c in cust_features.columns if c.startswith('category_share_') or
+              c.startswith('channel_share_') or c.startswith('shipping_method_share_')]
+
+
+X = cust_features[num_cols + share_cols].copy()
+
+scaler = StandardScaler()
+Xs = scaler.fit_transform(X)
+
+Xs = pd.DataFrame(Xs, columns=X.columns)
+display(Xs)
+
+
+pca = PCA(n_components=min(20, Xs.shape[1]))
+Xp = pca.fit_transform(Xs)
+
+# Scree
+fig = plt.figure()
+plt.plot(range(1, len(pca.explained_variance_ratio_)+1), pca.explained_variance_ratio_)
+plt.xlabel("Componente Principal")
+plt.ylabel("Variância explicada")
+plt.title("Scree Plot — PCA")
+plt.show()
+
+# 2D scatter
+fig = plt.figure()
+plt.scatter(Xp[:,0], Xp[:,1], s=6)
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+plt.title("PCA 2D — Clientes (sem cluster)")
+plt.show()
+
+
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score, silhouette_samples
+import numpy as np
+import pandas as pd
+
+sil_scores = []
+for k in range(2, 9):
+    km = KMeans(n_clusters=k, n_init=10, random_state=42)
+    labels = km.fit_predict(Xp[:, :10])
+    sil = silhouette_score(Xp[:, :10], labels)
+    sil_scores.append((k, sil))
+
+sil_df = pd.DataFrame(sil_scores, columns=["k","silhouette"]).sort_values("k")
+sil_df
+
+
+fig = plt.figure()
+plt.plot(sil_df['k'], sil_df['silhouette'], marker='o')
+plt.xlabel("k")
+plt.ylabel("Silhouette médio")
+plt.title("Silhouette por k (PCA 10 PCs)")
+plt.show()
+
+
+best_k = int(sil_df.iloc[sil_df['silhouette'].idxmax()]['k'])
+km = KMeans(n_clusters=best_k, n_init=10, random_state=42)
+labels = km.fit_predict(Xp[:, :10])
+sil_vals = silhouette_samples(Xp[:, :10], labels)
+avg_sil = sil_vals.mean()
+print("k escolhido:", best_k, "| silhouette médio:", round(avg_sil, 3))
+
+# Gráfico de silhueta
+fig = plt.figure()
+y_lower = 10
+for i in range(best_k):
+    ith_sil_vals = sil_vals[labels == i]
+    ith_sil_vals.sort()
+    size_i = ith_sil_vals.shape[0]
+    y_upper = y_lower + size_i
+    plt.fill_betweenx(np.arange(y_lower, y_upper), 0, ith_sil_vals)
+    plt.text(-0.05, y_lower + 0.5*size_i, str(i))
+    y_lower = y_upper + 10
+
+plt.axvline(avg_sil, linestyle="--")
+plt.xlabel("Coeficiente de Silhueta")
+plt.ylabel("Clusters")
+plt.title(f"Gráfico de Silhueta — k={best_k}")
+plt.show()
+
+
+fig = plt.figure()
+for i in range(best_k):
+    m = labels == i
+    plt.scatter(Xp[m,0], Xp[m,1], s=8, label=f"Cluster {i}")
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+plt.title(f"PCA 2D — Clusters (k={best_k})")
+plt.legend()
+plt.show()
+
+
+centers = km.cluster_centers_
+dists = np.linalg.norm(Xp[:, :10] - centers[labels], axis=1)
+thr = np.percentile(dists, 97)
+anom = (dists >= thr).astype(int)
+print("Anomalias (distância):", anom.sum())
+
+iso = IsolationForest(contamination=0.03, random_state=42)
+iso_labels = iso.fit_predict(Xp[:, :10])
+anom_iso = (iso_labels == -1).astype(int)
+print("Anomalias (IsolationForest):", anom_iso.sum())
+
+fig = plt.figure()
+plt.scatter(Xp[:,0], Xp[:,1], s=6, alpha=0.25, label="normal")
+plt.scatter(Xp[anom==1,0], Xp[anom==1,1], s=12, marker="x", label="anom (dist)")
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+plt.title("PCA 2D — Anomalias")
+plt.legend()
+plt.show()
